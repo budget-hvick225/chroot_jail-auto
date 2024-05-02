@@ -15,9 +15,9 @@ read -p "What mode would you like to use? (M1/M2): " mode
 		exit 0
 	done
 
-	if [[ "$mode" = "M1" ]]; then # JAIL CREATION
+	if [[ "$mode" = "M1" ]]; then # JAIL CREATION (M1)
 
-			# Initial step, just to make sure you somehow got a /bin/bash LOL
+			# Initial step, just to make sure you got a /bin/bash directory, it'd be funny not to have one LOL
 
 			if [ ! -x "/bin/bash" ]; then
 				echo "Error: /bin/bash couldn't be found"
@@ -111,7 +111,7 @@ read -p "What mode would you like to use? (M1/M2): " mode
 
 				done
 
-			# Step 3: Copying a bunch of data from the main system. idk if it will work without these I am trash at bash scripting ngl (someone teach me? XD)
+			# Step 3: Copying a bunch of data from the main system. Pretty much some essentials that will help with making this work, and some are just nice utilities to have, I suppose?
 			echo "Copying a bunch of files from the main system to make the chroot jail usable, script is open source so you can see which :)"
 			cp /etc/nsswitch.conf "${chroot_dir}/etc/nsswitch.conf"
 			cp /etc/pam.d/common-account "${chroot_dir}/etc/pam.d/"
@@ -129,29 +129,9 @@ read -p "What mode would you like to use? (M1/M2): " mode
 			cp /lib/x86_64-linux-gnu/libnsl.so.1 "${chroot_dir}/lib"
 			cp -fa /etc/security/ "${chroot_dir}/etc/security"
 
-			# Define the path to the login.defs file
-			login_defs="${chroot_dir}/etc/login.defs"
-
-			# Check if the file already exists, if not, create it {spoiler: it shouldn't, if this script worked since the beginning.}
-			if [ ! -e "$login_defs" ]; then
-				mkdir -p "${chroot_dir}/etc/"
-				touch "$login_defs"
-			fi
-
-			# Add the line "SULOG_FILE /var/log/sulog" to the login.defs file
-			keyword="SULOG_FILE"
-			line=$(grep "$keyword" $login_defs)
-			if [ ! -n "$line" ]; then
-				echo "SULOG_FILE /var/log/sulog" >> "$login_defs"
-			else
-				sed -i "s|$line|SULOG_FILE /var/log/sulog|" "$login_defs"
-			fi
-
-			echo "Set the SULOG_FILE in $login_defs"
-
 			echo "Created a chroot jail successfully !"
 
-	else # JAILED USER CREATION
+	else # JAILED USER CREATION (M2)
 
 		chroot_dir="/var/chroot"
 
@@ -280,7 +260,9 @@ read -p "What mode would you like to use? (M1/M2): " mode
 		done
 
 		cp -p -r -fa "/home/$username" "${chroot_dir}/home/"
-		new_line="${username}:x:1003:1003:,,,:/home/${username}:/bin/jailshell_$username"
+		userID=$(id -u ${username})
+		groupID=$(id -g ${username})
+		new_line="${username}:x:${userID}:${groupID}:,,,:/home/${username}:/bin/jailshell_$username"
 
 		# Search for the line containing the username in the file
 		line=$(grep "${username}:" /etc/passwd)
@@ -294,30 +276,6 @@ read -p "What mode would you like to use? (M1/M2): " mode
 			# If the line does not exist, append it to the file
 			echo "$new_line" >> /etc/passwd
 			echo "Added jailed version of user in passwd successfully."
-		fi
-
-		# Bunch of files also used in M1
-		cp /etc/nsswitch.conf "${chroot_dir}/etc/nsswitch.conf"
-		cp /etc/pam.d/common-account "${chroot_dir}/etc/pam.d/"
-		cp /etc/pam.d/common-auth "${chroot_dir}/etc/pam.d/"
-		cp /etc/pam.d/common-session "${chroot_dir}/etc/pam.d/"
-		cp /etc/pam.d/su "${chroot_dir}/etc/pam.d/"
-		cp /etc/bash.bashrc "${chroot_dir}/etc/"
-		cp /etc/localtime "${chroot_dir}/etc/"
-		cp /etc/services "${chroot_dir}/etc/"
-		cp /etc/protocols "${chroot_dir}/etc/"
-		cp /usr/bin/dircolors "${chroot_dir}/usr/bin/"
-		cp /usr/bin/groups "${chroot_dir}/usr/bin/"
-		cp /lib/x86_64-linux-gnu/libnss_files.so.2 "${chroot_dir}/lib"
-		cp /lib/x86_64-linux-gnu/libnss_compat.so.2 "${chroot_dir}/lib"
-		cp /lib/x86_64-linux-gnu/libnsl.so.1 "${chroot_dir}/lib"
-		cp -fa /etc/security/ "${chroot_dir}/etc/security"
-
-		login_defs="${chroot_dir}/etc/login.defs"
-
-		if [ ! -e "$login_defs" ]; then
-			mkdir -p "${chroot_dir}/etc/"
-			touch "$login_defs"
 		fi
 
 		echo "Set the SULOG_FILE in $login_defs"
