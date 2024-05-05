@@ -58,60 +58,9 @@ read -p "What mode would you like to use? (M1/M2): " mode
 
 			cd "$chroot_dir"
 
-			mkdir -p {etc/pam.d,etc/security,var/log,usr/bin} # Same scenario as above.
+			mkdir -p {etc/pam.d,etc/security,var/log,usr/bin,lib/security} # Same scenario as above.
 
-			# Step 2: Through running ldd of the commands we desire, and we find out what dependencies we need to add them
-
-			list=("/bin/bash" "/bin/ls" "/bin/mkdir") # BARE ESSENTIALS ! if you need more, will have to use another script that I'll set up.
-
-				for element in "${list[@]}"; do
-
-					# directory type as in, is /usr/bin or just /bin ?
-					directory_type=$(awk -F'/' '{for (i=1; i<NF; i++) printf "%s/", $i}' <<< "$element")
-
-					line_count=$(ldd "$element" | wc -l)
-
-					for ((currentline=2; currentline<=line_count; currentline++)); do
-					# extract line
-						line=$(ldd "$element" | sed -n "${currentline}p")
-					# extract path and copy to where it should be
-						path=$(awk '{print $3}' <<< "$line")
-
-						if [ -z "$path" ]; then
-							path=$(awk '{print $1}' <<< "$line")
-						fi
-
-						chroot_variant=$(awk -F'/' '{print $2}' <<< "$path")
-						if [[ "$chroot_variant" == "usr" ]]; then
-							chroot_variant="usr/lib/"
-						fi
-					# extract dependency name for logging purposes
-						dep_name=$(awk '{print $1}' <<< "$line")
-					# storing the ideal final location to a variable and copying dependency from path to it
-					final_location="${chroot_dir}/${chroot_variant}"
-
-						if [ ! -d "$final_location" ]; then
-							mkdir -p "$final_location"
-						fi
-
-					cp "$path" "$final_location"
-					echo "Copied $dep_name to $final_location successfully!"
-
-					done
-
-					variant_path="${chroot_dir}${directory_type}"
-
-					if [ ! -d "$variant_path" ]; then
-						mkdir -p "$variant_path"
-					fi
-
-					cp "$element" "$variant_path"
-
-					echo "Copied $element to $variant_path"
-
-				done
-
-			# Step 3: Copying a bunch of data from the main system. Pretty much some essentials that will help with making this work, and some are just nice utilities to have, I suppose?
+			# Step 2: Copying a bunch of data from the main system. Pretty much some essentials that will help with making this work, and some are just nice utilities to have, I suppose?
 			echo "Copying a bunch of files from the main system to make the chroot jail usable, script is open source so you can see which :)"
 			cp /etc/nsswitch.conf "${chroot_dir}/etc/nsswitch.conf"
 			cp /etc/pam.d/common-account "${chroot_dir}/etc/pam.d/"
@@ -129,7 +78,7 @@ read -p "What mode would you like to use? (M1/M2): " mode
 			cp /lib/x86_64-linux-gnu/libnsl.so.1 "${chroot_dir}/lib"
 			cp -fa /etc/security/ "${chroot_dir}/etc/security"
 
-			echo "Created a chroot jail successfully !"
+			echo "Created a chroot jail successfully ! Now all you have to do is add commands to it with the other script or manually !"
 
 	else # JAILED USER CREATION (M2)
 
@@ -174,7 +123,7 @@ read -p "What mode would you like to use? (M1/M2): " mode
 		
 		username_id=`id ${username} 2>&1`
 		if [[ "$username_id" != "id: ‘${username}’: no such user" ]]; then
-			read -p "Do you want to proceed with removing the user removal?(Y/N): " removal
+			read -p "Do you want to proceed with removing the user removal including the home directories?(Y/N): " removal
 
 				while [[ ! "$removal" =~ ^(Y|N)$ ]]; do
 					read -p "Please enter Y or N: " removal
@@ -183,20 +132,31 @@ read -p "What mode would you like to use? (M1/M2): " mode
 
 				if [ "$removal" = "Y" ]; then
 					echo "Proceeding with the removal of the user: $username"
-					groupdel "$username"
-					deluser "$username"
+					pkill -u "$username"
+					groupdel -f "$username"
+					deluser -f "$username"
+
+					if [ -d "/home/$username" ]; then
+						rm -r -f "/home/$username"
+					fi
+
+					if [ -d "${chroot_dir}/home/$username" ]; then
+						rm -r -f "${chroot_dir}/home/$username"
+					fi
+
+					echo "Please rerun the script in M2"
+					exit 0
 				else
 					echo "Exiting the script"
 					exit 0
 				fi
-
-			exit 0
 		fi
 
 		adduser "$username"
 		adduser "$username" sudo
-		passwd "$username"
-		mkdir -p "$chroot_dir/home/${username}"
+		mkdir -p "${chroot_dir}/home/${username}"
+		chown "${username}:${username}" "${chroot_dir}/home/${username}"
+		chmod o-rx "${chroot_dir}/home/${username}"
 
 		# Define the path to the jailshell
 		jailshell="/bin/jailshell_$username"
@@ -211,7 +171,7 @@ read -p "What mode would you like to use? (M1/M2): " mode
 
 		# Create the jailshell
 		echo "#!/bin/bash" >> "$jailshell"
-		echo "echo "Welcome, $username"; sudo chroot /var/chroot" >> "$jailshell"
+		echo "echo \"Welcome, $username\"; sudo chroot --userspec=${username}:${username} ${chroot_dir} /bin/bash -c \"cd /home/${username}; exec bash\"" >> "$jailshell"
 
 		chmod +x "$jailshell"
 
@@ -259,7 +219,6 @@ read -p "What mode would you like to use? (M1/M2): " mode
 
 		done
 
-		cp -p -r -fa "/home/$username" "${chroot_dir}/home/"
 		userID=$(id -u ${username})
 		groupID=$(id -g ${username})
 		new_line="${username}:x:${userID}:${groupID}:,,,:/home/${username}:/bin/jailshell_$username"
