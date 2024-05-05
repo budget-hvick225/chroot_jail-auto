@@ -1,7 +1,8 @@
 #!/bin/bash
-# Yes, this is pasted from chroot_setup.sh lmao
+# Yes, this is pasted from an old version of chroot_setup.sh, I feel its better to be separated
 chroot_dir="/var/chroot"
-list=("/bin/su") # BARE ESSENTIALS ! if you need more, will have to use another script that I'll set up.
+list=("/bin/bash" "/bin/mkdir" "/bin/ls") # Edit this place to what you need (I added just a few examples to see how it should be done. I'd suggest running this as-is first)
+# Do which <commandname> and you should find out what to paste in there
 
     for element in "${list[@]}"; do
 
