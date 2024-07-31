@@ -1,0 +1,2 @@
+in chroot_setup.sh you can choose an option to first create the chroot jail, then you can use the second option to create a valid user that will be jailed the moment the user is connected.
+command_adder / command_remover are used to add paths to commands like /bin/bash ; /bin/nano or /usr/bin/bash  ; /usr/bin/nano (depending on the distro / the install type, make sure to check though) which are replicated into the chroot jail to be usable as comamnds.
